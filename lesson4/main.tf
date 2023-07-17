@@ -4,7 +4,7 @@
 #
 #
 #
-# Lesson 4
+# Lesson 4 
 
 #initialization aws provider
 provider "aws" {}
@@ -67,7 +67,7 @@ resource "aws_security_group" "webserver4_sec" {
     }
   }
   #outcome trafic
-  egress = {
+  egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
