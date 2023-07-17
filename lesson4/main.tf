@@ -66,7 +66,7 @@ resource "aws_security_group" "webserver4_sec" {
       cidr_blocks = ["0.0.0.0/0"]
     }
   }
-
+  #outcome trafic
   egress = {
     from_port   = 0
     to_port     = 0
@@ -75,7 +75,7 @@ resource "aws_security_group" "webserver4_sec" {
   }
 
   tags = {
-    name = "dynamic security group"
+    name  = "dynamic security group"
     owner = "Dark"
   }
 }
