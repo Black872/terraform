@@ -4,22 +4,26 @@
 #
 #
 #
-# Lesson 6 Output
+# Lesson 7 resource creation order
 
 #initialization aws provider
 provider "aws" {}
 
 resource "aws_default_vpc" "default" {}
-#added elastic ip(static ip address) for webserver6
+#added elastic ip(static ip address) for webserver
 resource "aws_eip" "static_ip" {
-  instance = aws_instance.webserver6.id
+  instance = aws_instance.webserver7.id
+  tags = {
+    name  = "web server IP"
+    owner = "Dark"
+  }
 }
 
-#instance webserver6
-resource "aws_instance" "webserver6" {
+#instance webserver
+resource "aws_instance" "webserver7" {
   ami                    = "ami-07ce6ac5ac8a0ee6f"
   instance_type          = "t2.micro"
-  vpc_security_group_ids = [aws_security_group.webserver6_sec.id]
+  vpc_security_group_ids = [aws_security_group.webserver7_sec.id]
   # added dynamic user_data templatefile with few variables used with bash script
   user_data = templatefile("script.sh.tpl", {
     f_name = "Roman"
@@ -28,27 +32,44 @@ resource "aws_instance" "webserver6" {
   })
 
   tags = {
-    name  = "webserver6"
+    name  = "webserver7"
     owner = "Dark"
   }
-  # #disable destroy instance
-  # lifecycle {
-  #   prevent_destroy = True
-  # }
-  # #ignoring any changes in AMI and User_data variables
-  # lifecycle {
-  #   ignore_changes = ["ami", "user_data"]
-  # }
-  #making new instance before previous will be destroyed
+
   lifecycle {
     create_before_destroy = true
   }
+
+  depends_on = [aws_instance.db_server, aws_instance.app_server]
+
 }
 
+resource "aws_instance" "app_server" {
+  ami                    = "ami-07ce6ac5ac8a0ee6f"
+  instance_type          = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.webserver7_sec.id]
+
+  tags = {
+    name = "Server-Application"
+  }
+  depends_on = [aws_instance.db_server]
+}
+resource "aws_instance" "db_server" {
+  ami                    = "ami-07ce6ac5ac8a0ee6f"
+  instance_type          = "t2.micro"
+  vpc_security_group_ids = [aws_security_group.webserver7_sec.id]
+
+  tags = {
+    name = "Server-Database"
+  }
+
+}
+
+
 # dynamic block security group with several ingress/egress rules
-resource "aws_security_group" "webserver6_sec" {
-  name        = "webserver 6 security group"
-  description = "webserver 6 allow http/https/web"
+resource "aws_security_group" "webserver7_sec" {
+  name        = "webserver 7 security group"
+  description = "webserver 7 allow http/https/web"
   vpc_id      = aws_default_vpc.default.id # This need to be added since AWS Provider v4.29+ to set VPC id
 
   dynamic "ingress" {
@@ -71,6 +92,11 @@ resource "aws_security_group" "webserver6_sec" {
       {
         port        = "8090",
         description = "web from internet",
+        protocol    = "tcp"
+      },
+      {
+        port        = "22"
+        description = "ssh"
         protocol    = "tcp"
       },
     ]
