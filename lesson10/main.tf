@@ -31,7 +31,8 @@ resource "aws_default_subnet" "default_az2" {
 }
 #----------------------------------------
 resource "aws_security_group" "websg" {
-  name = "Security group"
+  name   = "Security group"
+  vpc_id = aws_default_vpc.default.id
 
   dynamic "ingress" {
     for_each = ["80", "443"]
@@ -39,22 +40,15 @@ resource "aws_security_group" "websg" {
       from_port   = ingress.value
       to_port     = ingress.value
       protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/24"]
+      cidr_blocks = ["0.0.0.0/0"]
     }
-  }
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/24"]
   }
 
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/24"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {
@@ -63,8 +57,9 @@ resource "aws_security_group" "websg" {
   }
 }
 #create instance
-resource "aws_launch_configuration" "weblauch" {
-  name            = "Webserver-Highly-Available-LC"
+resource "aws_launch_configuration" "web" {
+  name_prefix = "Webserver-Highly-Available-LC-"
+  //name            = "Webserver-Highly-Available-LC"
   image_id        = data.aws_ami.latest_amazon_linux.id
   instance_type   = "t2.micro"
   security_groups = [aws_security_group.websg.id]
@@ -76,15 +71,15 @@ resource "aws_launch_configuration" "weblauch" {
 
 }
 
-resource "aws_autoscaling_group" "webscal" {
-  name                 = "Webserver-Highly-Available-ASG"
-  launch_configuration = aws_launch_configuration.weblaunch.name
+resource "aws_autoscaling_group" "web" {
+  name                 = "ASG-${aws_launch_configuration.web.name}"
+  launch_configuration = aws_launch_configuration.web.name
   min_size             = 2
   max_size             = 2
   min_elb_capacity     = 2
   health_check_type    = "ELB"
   vpc_zone_identifier  = [aws_default_subnet.default_az1.id, aws_default_subnet.default_az2.id]
-  load_balancers       = [aws_elb.webelb.name]
+  load_balancers       = [aws_elb.web.name]
 
   dynamic "tag" {
     for_each = {
@@ -93,35 +88,35 @@ resource "aws_autoscaling_group" "webscal" {
 
     }
     content {
-      key                = tag.value
-      value              = tag.value
-      propagate_at_lauch = true
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
     }
-    lifecycle {
-      create_before_destroy = true
-    }
-  }
 
-  resource "aws_elb" "webelb" {
-    name               = "WebServer-HA-ELB"
-    availability_zones = [data.aws_availability_zones.available.names[0], data.aws_availability_zones.available.names[1]]
-    security_group     = [aws_security_group.websg.id]
-    listener {
-      lb_port           = 80
-      lb_protocol       = "http"
-      instance_port     = 80
-      instance_protocol = "http"
-    }
-    healty_check {
-      healty_treshold   = 2
-      unhealty_treshold = 2
-      timeout           = 3
-      targer            = "HTTP:80/"
-      interval          = 10
-    }
-    tags = {
-      Name = "WebServer-Highly-Available-ELB"
-    }
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+resource "aws_elb" "web" {
+  name               = "WebServer-HA-ELB"
+  availability_zones = [data.aws_availability_zones.available.names[0], data.aws_availability_zones.available.names[1]]
+  security_groups    = [aws_security_group.websg.id]
+  listener {
+    lb_port           = 80
+    lb_protocol       = "http"
+    instance_port     = 80
+    instance_protocol = "http"
+  }
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 3
+    target              = "HTTP:80/"
+    interval            = 10
+  }
+  tags = {
+    Name = "WebServer-Highly-Available-ELB"
   }
 }
 
